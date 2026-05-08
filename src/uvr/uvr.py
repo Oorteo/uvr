@@ -91,8 +91,11 @@ def main():  # pragma: no cover
         print(f"DEBUG uv {prog_args=}", file=sys.stderr)
 
 
-    subprocess.run(prog_args)
-    sys.exit(0)
+    try:
+        result = subprocess.run(prog_args)
+    except KeyboardInterrupt:
+        sys.exit(130)
+    sys.exit(result.returncode)
 
 
 if __name__ == "__main__":  # pragma: no cover
