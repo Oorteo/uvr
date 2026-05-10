@@ -123,3 +123,16 @@ This explicit separation is crucial for:
 
 **Recommendation**: Utilize the `--` separator whenever precise control over argument distribution between `uvr/uv` and the target script is required.
 
+
+## Ctrl+C (SIGINT) Handling
+
+`uvr` handles `KeyboardInterrupt` to provide clean CLI behavior when interrupted with `Ctrl+C`.
+
+- It suppresses Python traceback noise (unwanted junk output) on user interruption.
+- It exits with status code `130`, following the common Unix convention: `128 + 2` (`SIGINT` is signal number `2`).
+- This keeps output clean while still signaling to the parent shell/process that execution was interrupted.
+
+Platform note:
+- On Linux and macOS, `130` matches the common signal-derived convention (`128 + SIGINT 2`).
+- On Windows, `130` is used intentionally as a consistent, cross-platform interruption code for `uvr`.
+

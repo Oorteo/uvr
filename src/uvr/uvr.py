@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import os
 import sys
@@ -79,7 +79,7 @@ def main():  # pragma: no cover
     if not os.path.isfile(run_script):    # fall back to uv run
         prog_args = ['uv', 'run'] + pre_opt + [
             run_script
-        ] + post_opt  # fall back to uv run
+        ] + post_opt
     else:
         run_script = os.path.realpath(run_script)
         run_script_dir = os.path.dirname(run_script)
@@ -91,9 +91,14 @@ def main():  # pragma: no cover
         print(f"DEBUG uv {prog_args=}", file=sys.stderr)
 
 
+    # Remove extraneous output (junk) on Ctrl+C (SIGINT):
     try:
         result = subprocess.run(prog_args)
     except KeyboardInterrupt:
+        # Cleanly handle Ctrl+C (SIGINT): exit with code 130 (128 + 2),
+        # where 128 is the base for fatal signals and 2 is the signal number for SIGINT.
+        # This prevents unwanted traceback (unwanted output/noise) and signals to the shell
+        # that the process was interrupted by the user.
         sys.exit(130)
     sys.exit(result.returncode)
 
