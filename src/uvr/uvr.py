@@ -4,6 +4,26 @@ import os
 import sys
 import subprocess
 
+
+def get_uvr_version():
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return version('uvr')
+    except PackageNotFoundError:
+        return 'unknown'
+
+
+def print_help():
+    print(f"Version:            {get_uvr_version()}")
+    print("Shebang usage:      #!/usr/bin/env -S uvr [options] [--]")
+    print(
+        "Command line usage: uvr [options] [--] script.py [script options]"
+    )
+    print(
+        "Debug usage:        uvr -v [options] [--] script.py [script options]"
+    )
+
 # Option '--' is separator.  When you use it, you're telling uvr to treat all arguments that come after it
 #   as destined exclusively for your Python script, not for uvr or uv.
 def resolve_argv():
@@ -53,13 +73,7 @@ def resolve_argv():
 
 def main():  # pragma: no cover
     if len(sys.argv) < 2:
-        print("Shebang usage:      #!/usr/bin/env -S uvr [options] [--]")
-        print(
-            "Command line usage: uvr [options] [--] script.py [script options]"
-        )
-        print(
-            "Debug usage:        uvr -v [options] [--] script.py [script options]"
-        )
+        print_help()
 
         sys.exit(1)
 
