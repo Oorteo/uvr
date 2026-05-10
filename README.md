@@ -136,3 +136,25 @@ Platform note:
 - On Linux and macOS, `130` matches the common signal-derived convention (`128 + SIGINT 2`).
 - On Windows, `130` is used intentionally as a consistent, cross-platform interruption code for `uvr`.
 
+
+## Security Notes
+
+`uvr` is a convenience wrapper around `uv run`. It does not add privileges by itself, but it will execute the script/command you pass to it.
+
+Main risks:
+- Running untrusted scripts can execute arbitrary code.
+- Untrusted dependency sources can introduce supply-chain risk.
+- Running as root/Administrator increases impact if something goes wrong.
+- A compromised `PATH` could resolve a malicious `uv` binary.
+
+Recommended protections:
+- Run only trusted scripts and trusted dependency sources.
+- Do not run `uvr` as root/Administrator unless strictly required.
+- In CI, pin dependencies and use a lockfile where possible.
+- Prefer explicit script paths for automation (`script.py`) over ambiguous invocations.
+- Keep build/runtime environments isolated (virtual environments, containers, CI runners).
+- Ensure your `PATH` resolves to the expected `uv` executable.
+
+Scope note:
+- `uvr` is not a sandbox. It is a command runner helper and should be used with standard secure development practices.
+
