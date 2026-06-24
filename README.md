@@ -21,6 +21,8 @@ uv run --project /path/to/script/project [options] /path/to/script/project/scrip
 
 ## Installation
 
+Prerequisite: `uv` must be installed and available on your `PATH`.
+
 To install `uvr`, use the following command:
 
 ```bash
@@ -52,7 +54,7 @@ Several ways to run your Python scripts with `uv`:
     * Example:
 
         ```bash
-        uv run [options] --project /path/to/project /path/to/project/script.py [script_options]
+        uv run --project /path/to/project [options] /path/to/project/script.py [script_options]
         ```
 
 2.  **Using `uvr script.py`:**
@@ -64,7 +66,7 @@ Several ways to run your Python scripts with `uv`:
         ```bash
         uvr [options] [--] script.py [script_options]
         ```
-    * Always use `--` if the automatic script identification fails or could be ambiguous.
+    * For ambiguity and edge cases, use `--` (see the section *General Rule for Using the `--` Separator*).
 
 
 
@@ -82,22 +84,22 @@ Several ways to run your Python scripts with `uv`:
         - **With `-S`**: You can pass options like `#!/usr/bin/env -S uvr --with dep1 --`
         - Some older or minimal Unix-like systems may not support the `-S` flag in `env`
 
-    * Always use `--` if the automatic script identification fails or could be ambiguous.
+    * If you pass script arguments, use `--` to separate `uvr/uv` options from script arguments.
 
 4. **Scripts without `.py` or `.pyw` extension:**
     * Automatic `--script` option is added if not already present (`--script` or `--gui-script`) in options.
-    * Otherwise, `uv` might loop indefinitely.
+    * Without this, `uv` can in some cases mis-handle execution flow.
 
     * Example: For a `foo` script:
 
         ```python
-            #!/usr/bin/env -S uvr [options] [--]
-            # Your Python code here...
+        #!/usr/bin/env -S uvr [options] [--]
+        # Your Python code here...
         ```
 
         This will be executed as `uv run [options] --script ...` if `[options]` do not already contain `--script` or `--gui-script`.
 
-    * Or, to be more explicit, you can include the `--script`  flag directly in the shebang:
+    * Or, to be more explicit, you can include the `--script` flag directly in the shebang:
 
         ```python
         #!/usr/bin/env -S uvr --script
