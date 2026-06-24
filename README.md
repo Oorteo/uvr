@@ -1,15 +1,22 @@
 
 
-# Simple Script Execution with uvr
+# Streamlined Script Execution with `uvr`
 
-[`uv`](https://github.com/astral-sh/uv.git) is a fast, modern Python package installer and resolver, designed as a drop-in replacement for pip and pip-compile.
+[`uv`](https://github.com/astral-sh/uv.git) is a blazing fast, modern Python package manager and workflow tool. However, its project-centric design (`uv run`) prioritizes the current working directory (CWD) when looking for virtual environments and `pyproject.toml` files. This makes it cumbersome to execute a project-dependent script from outside its root directory, as it forces you to manually pass the `--project` flag with the absolute path to the script's home.
 
-Unfortunately, [`uv`](https://github.com/astral-sh/uv.git)
-prioritizes virtual environments within the current directory. This makes it cumbersome to execute scripts located elsewhere, requiring the use of the `--project` flag.
+`uvr` (uv-runner) acts as an intelligent wrapper that resolves this pain point. It automatically detects the correct project context relative to the script being executed, allowing you to use a clean shebang (`#!/usr/bin/env uvr`) or call:
 
-This script offers a streamlined workaround for running Python scripts via `uv`, allowing you to use `uvr [options] script.py` instead of `uv run [options] --project <script_path> script.py`."
+```bash
+uvr [options] script.py
+```
 
-Its primary value lies in its simplicity and immediate usability, providing a *quick fix* for a pressing pain point.
+instead of:
+
+```bash
+uv run --project /path/to/script/project [options] /path/to/script/project/script.py
+```
+
+**Key Value:** It restores the true portability of standalone and project-tied Python scripts without polluting your command line or breaking your workflow when moving between directories.
 
 
 ## Installation
@@ -34,31 +41,31 @@ uv tool upgrade uvr
 ```
 
 
-
 ## Usage
 
 Several ways to run your Python scripts with `uv`:
 
-1.  **Using `uv run --project <script_path> script.py`:**
+1.  **Using `uv run --project <project_path> <script_path>`:**
 
-    * This command explicitly tells `uv` to run the specified Python script (`script.py`) within the context of the project located at `<script_path>`.
-    * This is useful when your script relies on dependencies defined within a specific project directory.
+    * This command explicitly tells `uv` to run the specified Python script within the context of the project located at `<project_path>`.
+    * This is useful when your script relies on dependencies defined within a specific project directory but is executed from elsewhere.
     * Example:
 
         ```bash
-        uv run [options] --project /path/to/project run_script.py [script_options]
+        uv run [options] --project /path/to/project /path/to/project/script.py [script_options]
         ```
 
 2.  **Using `uvr script.py`:**
 
-    * This is a more direct way to execute your Python script (`run_script.py`) using `uvr`.
+    * This is a more direct way to execute your Python script (`script.py`) using `uvr`.
     * `uvr` automatically determines the project directory based on the script path, effectively mimicking the `--project` flag's behavior.
     * Example:
 
         ```bash
-        uvr [options] [--] run_script.py [script_options]
+        uvr [options] [--] script.py [script_options]
         ```
     * Always use `--` if the automatic script identification fails or could be ambiguous.
+
 
 
 3.  **Shebang Usage:**
@@ -67,7 +74,6 @@ Several ways to run your Python scripts with `uv`:
 
         ```python
         #!/usr/bin/env -S uvr [options] [--]
-
         # Your Python code here...
         ```
 
@@ -97,7 +103,6 @@ Several ways to run your Python scripts with `uv`:
         #!/usr/bin/env -S uvr --script
         ```
 
-        (Use `#!/usr/bin/env uvr` if `-S` is not supported, but then you cannot pass additional options)
 
     * **Important Exception for Non-Files**: If the identified `script_path` (the argument immediately following options or `--`) does not point to an actual file on disk, `uvr` will not automatically add the `--script` or `--gui-script` option. This behavior ensures `uvr` can correctly pass through commands that are executables within the virtual environment (e.g., `uvr black .`, `uvr pytest`), rather than a Python script file.
 
@@ -105,8 +110,8 @@ Several ways to run your Python scripts with `uv`:
 5.  **Debug usage:**
     * Example:
         ```bash
-        uvr -v [options] [--] run_script.py [script_options]
-        uvr -vv [options] [--] run_script.py [script_options]
+        uvr -v [options] [--] script.py [script_options]
+        uvr -vv [options] [--] script.py [script_options]
         ```
 
 
