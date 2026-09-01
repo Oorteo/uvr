@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Authors (see git history)
+# SPDX-License-Identifier: MIT
 
 import os
 import sys

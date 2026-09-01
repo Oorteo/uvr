@@ -1,4 +1,6 @@
 #!/usr/bin/env uvr
+# SPDX-FileCopyrightText: 2026 Authors (see git history)
+# SPDX-License-Identifier: MIT
 
 # Example script for testing Ctrl+C (SIGINT) handling in uvr
 # Run this script via uvr to check if junk output is suppressed on interruption.

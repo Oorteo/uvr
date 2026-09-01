@@ -1,4 +1,6 @@
 #!/usr/bin/env -S uvr -vv --
+# SPDX-FileCopyrightText: 2026 Authors (see git history)
+# SPDX-License-Identifier: MIT
 
 # will be called as: uvr -vv  tests/foo.py
 

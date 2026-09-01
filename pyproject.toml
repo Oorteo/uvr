@@ -1,10 +1,10 @@
 [project]
 name = "uvr"
-version = "0.1.28"
+version = "0.1.31"
 description = "Simple script execution with uv - run Python scripts without explicit --project flag"
 readme = "README.md"
 authors = [
-    { name = "karnigen", email = "karnigen@gmail.com" }
+    { name = "Authors (see git history)" }
 ]
 requires-python = ">=3.9"
 dependencies = []
@@ -26,9 +26,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/karnigen/uvr"
-Repository = "https://github.com/karnigen/uvr.git"
-Issues = "https://github.com/karnigen/uvr/issues"
+Homepage = "https://github.com/Oorteo/uvr"
+Repository = "https://github.com/Oorteo/uvr.git"
+Issues = "https://github.com/Oorteo/uvr/issues"
 
 [project.scripts]
 uvr = "uvr:main"
