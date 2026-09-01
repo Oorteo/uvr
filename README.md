@@ -32,6 +32,15 @@ To upgrade `uvr`, use the following command:
 uv tool upgrade uvr
 ```
 
+## Windows Console Modes
+
+Two entry points are installed:
+
+- `uvr` — console application. Use from a terminal or for scripts that need a command-line window.
+- `uvr-gui` — GUI application. Use for scripts started by double-click or for GUI-only programs that must not open a console window.
+
+On Linux and macOS both commands behave the same.
+
 ## Usage
 
 Several ways to run your Python scripts with `uv`:
