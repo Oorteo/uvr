@@ -1,6 +1,6 @@
 [project]
 name = "uvr"
-version = "0.1.33"
+version = "0.1.35"
 description = "Simple script execution with uv - run Python scripts without explicit --project flag"
 readme = "README.md"
 authors = [
@@ -25,9 +25,6 @@ Issues = "https://github.com/Oorteo/uvr/issues"
 
 [project.gui-scripts]
 uvr = "uvr:main"
-
-[project.scripts]
-uvr-cli = "uvr:main"
 
 [build-system]
 requires = ["uv_build>=0.12.2,<0.13.0"]

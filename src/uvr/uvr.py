@@ -2,21 +2,9 @@
 # SPDX-FileCopyrightText: 2026 Authors (see git history)
 # SPDX-License-Identifier: MIT
 
-import ctypes
 import os
 import sys
 import subprocess
-
-
-def _has_console():
-    """Return True if the current process has an associated console window.
-
-    On Windows, gui-scripts do not get a console; calling a console child process
-    from a GUI parent would otherwise open a new, empty terminal window.
-    """
-    if sys.platform != "win32":
-        return True
-    return ctypes.windll.kernel32.GetConsoleWindow() != 0
 
 
 def get_uvr_version():
@@ -122,9 +110,9 @@ def main():  # pragma: no cover
     # Remove extraneous output (junk) on Ctrl+C (SIGINT):
     try:
         kwargs = {}
-        if not _has_console():
-            # Running as a Windows gui-script: prevent a new empty console window
-            # from appearing when the child `uv` process starts.
+        if sys.platform == "win32":
+            # uvr is packaged as a gui-script on Windows so it never opens its own
+            # console window. Pass the same requirement on to the child `uv` process.
             kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
         result = subprocess.run(prog_args, **kwargs)
     except KeyboardInterrupt:
