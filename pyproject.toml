@@ -1,6 +1,6 @@
 [project]
 name = "uvr"
-version = "0.1.32"
+version = "0.1.33"
 description = "Simple script execution with uv - run Python scripts without explicit --project flag"
 readme = "README.md"
 authors = [
@@ -8,12 +8,11 @@ authors = [
 ]
 requires-python = ">=3.9"
 dependencies = []
-license = { text = "MIT" }
+license = "MIT"
 keywords = ["uv", "script", "runner", "python", "tool"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Topic :: Software Development :: Build Tools",
 ]
