@@ -26,12 +26,6 @@ To install `uvr`, use the following command:
 uv tool install uvr
 ```
 
-or
-
-```bash
-uv tool install --from git+https://github.com/Oorteo/uvr uvr
-```
-
 To upgrade `uvr`, use the following command:
 
 ```bash
