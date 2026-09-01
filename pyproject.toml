@@ -23,8 +23,11 @@ Repository = "https://github.com/Oorteo/uvr.git"
 Issues = "https://github.com/Oorteo/uvr/issues"
 
 
-[project.gui-scripts]
+[project.scripts]
 uvr = "uvr:main"
+
+[project.gui-scripts]
+uvr-gui = "uvr:main"
 
 [build-system]
 requires = ["uv_build>=0.12.2,<0.13.0"]

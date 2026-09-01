@@ -2,9 +2,25 @@
 # SPDX-FileCopyrightText: 2026 Authors (see git history)
 # SPDX-License-Identifier: MIT
 
+import ctypes
 import os
 import sys
 import subprocess
+
+
+def _running_in_windows_console():
+    """Return True only on Windows when this process already owns a console.
+
+    uvr has two entry points:
+      - uvr      (console script)  -> attached to a terminal on Windows
+      - uvr-gui  (gui script)      -> no terminal, e.g. launched by double-click
+
+    When a gui-script launches a console child (here `uv`), Windows would open
+    a new, empty terminal window. Passing CREATE_NO_WINDOW prevents that.
+    """
+    if sys.platform != "win32":
+        return True  # only Windows distinguishes console vs GUI executables
+    return ctypes.windll.kernel32.GetConsoleWindow() != 0
 
 
 def get_uvr_version():
@@ -110,9 +126,9 @@ def main():  # pragma: no cover
     # Remove extraneous output (junk) on Ctrl+C (SIGINT):
     try:
         kwargs = {}
-        if sys.platform == "win32":
-            # uvr is packaged as a gui-script on Windows so it never opens its own
-            # console window. Pass the same requirement on to the child `uv` process.
+        if not _running_in_windows_console():
+            # We are the gui-script entry point (uvr-gui) on Windows, launched
+            # without a console. Tell the child `uv` process not to create one.
             kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
         result = subprocess.run(prog_args, **kwargs)
     except KeyboardInterrupt:
