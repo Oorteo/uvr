@@ -82,7 +82,7 @@ def resolve_argv():
 
     # prevent looping forever the same script not ending with .py or .pyw
     if not (run_script.endswith('.py') or run_script.endswith('.pyw')):
-        if '--script' not in pre_opt and '--gui-script' not in pre_opt:
+        if '-s' not in pre_opt and '--script' not in pre_opt and '--gui-script' not in pre_opt:
             if os.path.isfile(run_script):  # check if the script is a valid file
                 pre_opt.append('--script')  # if it is a file, we assume it is a python script
 
