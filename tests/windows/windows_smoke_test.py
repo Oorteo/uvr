@@ -21,13 +21,19 @@ def write_log(text: str) -> None:
         stream.flush()
 
 
-def run_uvr(entry_point: str, script: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
+def run_uvr(
+    entry_point: str,
+    script: Path,
+    *arguments: str,
+    pre_options: tuple[str, ...] = (),
+) -> subprocess.CompletedProcess[str]:
     command = [
         "uv",
         "run",
         "--project",
         str(ROOT),
         entry_point,
+        *pre_options,
         "--",
         str(script),
         *arguments,
@@ -83,7 +89,7 @@ def main() -> int:
             encoding="utf-8",
         )
 
-        debug = run_uvr("uvr", child, "-vv")
+        debug = run_uvr("uvr", child, pre_options=("-vv",))
         check(debug.returncode == 0, "uvr -vv exits successfully")
         check("child script.py" in debug.stderr, "debug output preserves a spaced script path")
 
