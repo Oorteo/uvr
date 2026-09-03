@@ -72,24 +72,56 @@ These instructions assume you're using **Chocolatey** as your package manager, *
 
 ## Set Up PATHs
 
-- **Windows PATH** (for `cmd.exe` and `PowerShell`):
-    - Edit your system's `PATH` environment variable to include these directories:
-        - `C:\MyScripts` (for `ucrt.bat`, `pw.bat`)
-        - `C:\ProgramData\chocolatey\bin` (for `choco`, `uv`)
-        - `C:\Program Files\Git\cmd` (for `git`)
-        - `C:\Users\%USERNAME%\.local\bin` (for `uvr`)
-        - `C:\tools\msys64\usr\bin` (for `bash`, `make`, etc.)
+### Windows PATH (for `cmd.exe` and `PowerShell`)
 
-- **MSYS2 Subsystem PATH** (`C:\tools\msys64\home\$USER\.bashrc`):
-    - Add these lines to your `.bashrc` file:
+1. Press **Win + S** and type `environment variables`.
+2. Click **"Edit the system environment variables"**.
+3. In the **System Properties** window, click the **"Environment Variables..."** button.
+4. Under **"System variables"**, find the row named `Path` and click **"Edit..."**.
+5. Click **"New"** and add each directory you need, for example:
+    - `C:\MyScripts` (for `ucrt.bat`, `pw.bat`)
+    - `C:\ProgramData\chocolatey\bin` (for `choco`, `uv`)
+    - `C:\Program Files\Git\cmd` (for `git`)
+    - `C:\Users\%USERNAME%\.local\bin` (for `uvr`)
+    - `C:\tools\msys64\usr\bin` (for `bash`, `make`, etc.)
+6. Click **"OK"** in every window to save the changes.
+7. Open a **new** PowerShell or `cmd` window so the updated `PATH` takes effect.
 
-        ```bash
-        export PATH="/c/Program Files/Git/cmd:$PATH"
-        export PATH="/c/ProgramData/chocolatey/bin:$PATH"
-        export PATH="/c/Users/$USER/.local/bin:$PATH"
-        ```
+### Alternative: set PATH from PowerShell
 
-        > **Note:** Be aware that uninstalling MSYS2 will remove any custom configurations in `.bashrc`.
+Run the following command to add the directories to your user `PATH`:
+
+```powershell
+[Environment]::SetEnvironmentVariable(
+    "Path",
+    $env:Path + ";C:\MyScripts;C:\ProgramData\chocolatey\bin;C:\Program Files\Git\cmd;C:\Users\$env:USERNAME\.local\bin;C:\tools\msys64\usr\bin",
+    "User"
+)
+```
+
+> **Note:** Use `"Machine"` instead of `"User"` to set the system-wide `PATH` (requires Administrator privileges).
+
+### Alternative: set PATH from CMD
+
+Run the following command in an Administrator `cmd` window:
+
+```cmd
+setx PATH "%PATH%;C:\MyScripts;C:\ProgramData\chocolatey\bin;C:\Program Files\Git\cmd;C:\Users\%USERNAME%\.local\bin;C:\tools\msys64\usr\bin"
+```
+
+> **Warning:** `setx` has a limit of 1024 characters for the entire `PATH` value. If your `PATH` is longer, use the graphical editor or PowerShell method above.
+
+### MSYS2 Subsystem PATH (`C:\tools\msys64\home\$USER\.bashrc`)
+
+- Add these lines to your `.bashrc` file:
+
+    ```bash
+    export PATH="/c/Program Files/Git/cmd:$PATH"
+    export PATH="/c/ProgramData/chocolatey/bin:$PATH"
+    export PATH="/c/Users/$USER/.local/bin:$PATH"
+    ```
+
+    > **Note:** Be aware that uninstalling MSYS2 will remove any custom configurations in `.bashrc`.
 
 ---
 
