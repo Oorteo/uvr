@@ -10,10 +10,10 @@ wheels/
 .python-version
 
 # Virtual environments
-.venv
+.venv/
 
 # vscode
-.vscode
+.vscode/
 
 # uv
 uv.lock
@@ -21,4 +21,8 @@ uv.lock
 # Coverage
 .coverage
 coverage.*
+
+# Local scratch files and Windows smoke-test logs
+tmp/*
+tests/windows/*.log
 
