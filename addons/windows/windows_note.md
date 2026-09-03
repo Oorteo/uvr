@@ -9,6 +9,7 @@ These instructions assume you're using **Chocolatey** as your package manager, *
 - [Set Up PATHs](#set-up-paths)
 - [Install `make` within MSYS2](#install-make-within-msys2)
 - [Creating symlinks in Windows](#creating-symlinks-in-windows)
+- [Launch UCRT64 from Multi Commander](#launch-ucrt64-from-multi-commander)
 - [VS Code with the MSYS2 UCRT terminal](#vs-code-with-the-msys2-ucrt-terminal)
 - [Periodically Update Subsystems](#periodically-update-subsystems)
 
@@ -87,30 +88,6 @@ These instructions assume you're using **Chocolatey** as your package manager, *
 6. Click **"OK"** in every window to save the changes.
 7. Open a **new** PowerShell or `cmd` window so the updated `PATH` takes effect.
 
-### Alternative: set PATH from PowerShell
-
-Run the following command to add the directories to your user `PATH`:
-
-```powershell
-[Environment]::SetEnvironmentVariable(
-    "Path",
-    $env:Path + ";C:\MyScripts;C:\ProgramData\chocolatey\bin;C:\Program Files\Git\cmd;C:\Users\$env:USERNAME\.local\bin;C:\tools\msys64\usr\bin",
-    "User"
-)
-```
-
-> **Note:** Use `"Machine"` instead of `"User"` to set the system-wide `PATH` (requires Administrator privileges).
-
-### Alternative: set PATH from CMD
-
-Run the following command in an Administrator `cmd` window:
-
-```cmd
-setx PATH "%PATH%;C:\MyScripts;C:\ProgramData\chocolatey\bin;C:\Program Files\Git\cmd;C:\Users\%USERNAME%\.local\bin;C:\tools\msys64\usr\bin"
-```
-
-> **Warning:** `setx` has a limit of 1024 characters for the entire `PATH` value. If your `PATH` is longer, use the graphical editor or PowerShell method above.
-
 ### MSYS2 Subsystem PATH (`C:\tools\msys64\home\$USER\.bashrc`)
 
 - Add these lines to your `.bashrc` file:
@@ -163,6 +140,31 @@ mklink "C:\MyScripts\ucrt.bat" "C:\Users\%USERNAME%\Documents\uvr_git\addons\win
 3. Choose `C:\MyScripts` as the destination.
 
 > **Warning:** Be careful when linking or creating junctions inside the MSYS2 subsystem, because uninstalling MSYS2 may recursively delete them.
+
+---
+
+## Launch UCRT64 from Multi Commander
+
+You can create a user-defined command in Multi Commander to start the **UCRT64** terminal with a single click.
+
+1. Open **Configuration** → **User Defined Commands**.
+2. Click **New** (or **Add**) to create a new command.
+3. Enter a name, for example `ucrt`.
+4. In the command/script field enter the path to `ucrt.bat`:
+    ```text
+    C:\MyScripts\ucrt.bat
+    ```
+    or, if you want to force a new `cmd.exe` window:
+    ```text
+    cmd /c C:\MyScripts\ucrt.bat
+    ```
+5. Save the command.
+6. Add it to the toolbar:
+    - Right-click the toolbar and select **Customize Toolbar**.
+    - Click **Add** and choose the `ucrt` command from the list of user-defined commands.
+    - Optionally set an icon, label, and tooltip.
+
+> **Note:** If `C:\MyScripts` is in your Windows `PATH`, you can also use just `ucrt.bat` as the command.
 
 ---
 
