@@ -8,15 +8,16 @@ import sys
 import subprocess
 
 
-def _running_in_windows_console():
-    """Return True only on Windows when this process already owns a console.
+def _owns_console():
+    """Return True if this process already owns a console.
 
-    uvr has two entry points:
-      - uvr      (console script)  -> attached to a terminal on Windows
-      - uvr-gui  (gui script)      -> no terminal, e.g. launched by double-click
+    On Windows, console scripts run attached to a terminal (True), while
+    gui-scripts are launched without a terminal (False). The latter must
+    pass CREATE_NO_WINDOW when spawning a console child to avoid opening
+    a new, empty terminal window.
 
-    When a gui-script launches a console child (here `uv`), Windows would open
-    a new, empty terminal window. Passing CREATE_NO_WINDOW prevents that.
+    On non-Windows platforms there is no GUI/console executable distinction,
+    so we always return True (the child is allowed to inherit our terminal).
     """
     if sys.platform != "win32":
         return True  # only Windows distinguishes console vs GUI executables
@@ -126,7 +127,7 @@ def main():  # pragma: no cover
     # Remove extraneous output (junk) on Ctrl+C (SIGINT):
     try:
         kwargs = {}
-        if not _running_in_windows_console():
+        if not _owns_console():
             # We are the gui-script entry point (uvr-gui) on Windows, launched
             # without a console. Tell the child `uv` process not to create one.
             kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
