@@ -140,19 +140,26 @@ def test_find_venv_python_respects_virtual_env(tmp_path, monkeypatch):
     assert _find_venv_python('/some/other/path') == str(python)
 
 
-def test_is_offline():
+def test_is_offline_env():
     old = os.environ.get('UV_OFFLINE')
     try:
         os.environ['UV_OFFLINE'] = '1'
-        assert _is_offline() is True
+        assert _is_offline([]) is True
 
         os.environ['UV_OFFLINE'] = '0'
-        assert _is_offline() is False
+        assert _is_offline([]) is False
 
         del os.environ['UV_OFFLINE']
-        assert _is_offline() is False
+        assert _is_offline([]) is False
     finally:
         if old is None:
             os.environ.pop('UV_OFFLINE', None)
         else:
             os.environ['UV_OFFLINE'] = old
+
+
+def test_is_offline_flag():
+    assert _is_offline(['--offline']) is True
+    assert _is_offline(['-v', '--offline']) is True
+    assert _is_offline(['-v']) is False
+    assert _is_offline([]) is False

@@ -109,7 +109,8 @@ Several ways to run your Python scripts with `uv`:
         ```
 
 6.  **Offline mode:**
-    - When `UV_OFFLINE=1` is set and a project `.venv` is found, `uvr` runs
+    - When `UV_OFFLINE=1` is set **or** `--offline` is passed among the
+      `uvr`/`uv` pre-options and a project `.venv` is found, `uvr` runs
       the script directly with the `.venv` Python interpreter instead of
       invoking `uv run`.
     - This is useful when you are disconnected from the network or want to
@@ -118,9 +119,11 @@ Several ways to run your Python scripts with `uv`:
       (`VIRTUAL_ENV`), then walks upward from the script looking for a
       `.venv` directory. The walk stops at the first project root marker
       (`pyproject.toml` or `uv.lock`) so it never escapes the project.
-    - Example:
+    - Examples:
         ```bash
         UV_OFFLINE=1 uvr script.py
+        uvr --offline script.py
+        uvr --offline -- script.py --some-script-arg
         ```
     - If no `.venv` is found, `uvr` falls back to the normal `uv run` path,
       even in offline mode.

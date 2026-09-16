@@ -42,8 +42,9 @@ def print_help():
     print(
         "Debug usage:        uvr -v [options] [--] script.py [script options]"
     )
-    print("Offline mode:       set UV_OFFLINE=1 to run the script with the")
-    print("                    project's .venv Python directly (no uv run).")
+    print("Offline mode:       set UV_OFFLINE=1 or pass --offline to run")
+    print("                    the script with the project's .venv Python")
+    print("                    directly (no uv run).")
 
 
 # Option '--' is separator.  When you use it, you're telling uvr to treat all arguments that come after it
@@ -156,9 +157,15 @@ def _find_venv_python(start_dir):
         current = parent
 
 
-def _is_offline():
-    """Return True when uv offline mode is requested via UV_OFFLINE."""
-    return os.environ.get('UV_OFFLINE') == '1'
+def _is_offline(pre_opt):
+    """Return True when uv offline mode is requested.
+
+    Offline mode is triggered either by passing ``--offline`` among the
+    `uvr`/`uv` pre-options or by setting ``UV_OFFLINE=1`` in the environment.
+    """
+    if os.environ.get('UV_OFFLINE') == '1':
+        return True
+    return '--offline' in pre_opt
 
 
 def main():  # pragma: no cover
@@ -187,7 +194,7 @@ def main():  # pragma: no cover
     else:
         run_script = os.path.realpath(run_script)
         run_script_dir = os.path.dirname(run_script)
-        venv_python = _find_venv_python(run_script_dir) if _is_offline() else None
+        venv_python = _find_venv_python(run_script_dir) if _is_offline(pre_opt) else None
 
         if venv_python:
             if '-v' in pre_opt:
