@@ -14,7 +14,7 @@ instead of:
 uv run --project /path/to/script/project [options] /path/to/script/project/script.py
 ```
 
-**Key Value:** It restores the true portability of standalone and project-tied Python scripts without polluting your command line or breaking your workflow when moving between directories.
+**Key Value:** It restores the true portability of standalone and project-tied Python scripts without polluting your command line or breaking your workflow when moving between directories. It also supports an optional offline mode that runs scripts directly against a project `.venv` without invoking `uv run`.
 
 ## Installation
 
@@ -107,6 +107,23 @@ Several ways to run your Python scripts with `uv`:
         uvr -v [options] [--] script.py [script_options]
         uvr -vv [options] [--] script.py [script_options]
         ```
+
+6.  **Offline mode:**
+    - When `UV_OFFLINE=1` is set and a project `.venv` is found, `uvr` runs
+      the script directly with the `.venv` Python interpreter instead of
+      invoking `uv run`.
+    - This is useful when you are disconnected from the network or want to
+      skip `uv`'s dependency resolution and lockfile checks entirely.
+    - `uvr` first checks the already-activated virtual environment
+      (`VIRTUAL_ENV`), then walks upward from the script looking for a
+      `.venv` directory. The walk stops at the first project root marker
+      (`pyproject.toml` or `uv.lock`) so it never escapes the project.
+    - Example:
+        ```bash
+        UV_OFFLINE=1 uvr script.py
+        ```
+    - If no `.venv` is found, `uvr` falls back to the normal `uv run` path,
+      even in offline mode.
 
 ## General Rule for Using the `--` Separator
 
