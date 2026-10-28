@@ -4,6 +4,7 @@
 from .uvr import (
     _find_venv_python,
     _is_offline,
+    _resolve_prog_args,
     _venv_python_at,
     main,
     resolve_argv,

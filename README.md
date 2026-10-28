@@ -16,6 +16,18 @@ uv run --project /path/to/script/project [options] /path/to/script/project/scrip
 
 **Key Value:** It restores the true portability of standalone and project-tied Python scripts without polluting your command line or breaking your workflow when moving between directories. It also supports an optional offline mode that runs scripts directly against a project `.venv` without invoking `uv run`.
 
+## Project Virtual Environments
+
+- If `VIRTUAL_ENV` points to a usable environment, `uvr` prefers it. Otherwise,
+  `uvr` searches upward from the script directory (or current directory for a
+  command) for a project `.venv`.
+- Python scripts run directly with that environment's interpreter. Commands
+  such as `pytest` run directly from its `bin` directory on Unix or `Scripts`
+  directory on Windows. The selected environment is not synchronized by `uv`.
+- A uv project without a `.venv` keeps the normal `uv run` bootstrap behavior
+  when online. A Poetry project without a usable `.venv` fails with an error
+  instead of being passed to `uv run`.
+
 ## Installation
 
 Prerequisite: `uv` must be installed and available on your `PATH`.
@@ -109,24 +121,22 @@ Several ways to run your Python scripts with `uv`:
         ```
 
 6.  **Offline mode:**
-    - When `UV_OFFLINE=1` is set **or** `--offline` is passed among the
-      `uvr`/`uv` pre-options and a project `.venv` is found, `uvr` runs
-      the script directly with the `.venv` Python interpreter instead of
-      invoking `uv run`.
-    - This is useful when you are disconnected from the network or want to
-      skip `uv`'s dependency resolution and lockfile checks entirely.
-    - `uvr` first checks the already-activated virtual environment
-      (`VIRTUAL_ENV`), then walks upward from the script looking for a
-      `.venv` directory. The walk stops at the first project root marker
-      (`pyproject.toml` or `uv.lock`) so it never escapes the project.
+        - When `UV_OFFLINE=1` is set or `--offline` is passed among the `uvr`
+            pre-options, `uvr` runs directly from the selected local environment and
+            never invokes `uv run`.
+        - Offline mode requires a usable environment. Python scripts need its
+            interpreter; commands need to exist in that environment. If either is
+            missing, `uvr` reports an error instead of trying to bootstrap anything.
+        - This skips `uv` dependency resolution and lockfile checks entirely. It is
+            stricter than `uv --offline`, which still runs `uv` and only disables
+            network access.
     - Examples:
         ```bash
         UV_OFFLINE=1 uvr script.py
         uvr --offline script.py
         uvr --offline -- script.py --some-script-arg
+        uvr --offline pytest -q
         ```
-    - If no `.venv` is found, `uvr` falls back to the normal `uv run` path,
-      even in offline mode.
 
 ## General Rule for Using the `--` Separator
 

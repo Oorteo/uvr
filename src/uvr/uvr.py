@@ -42,9 +42,9 @@ def print_help():
     print(
         "Debug usage:        uvr -v [options] [--] script.py [script options]"
     )
-    print("Offline mode:       set UV_OFFLINE=1 or pass --offline to run")
-    print("                    the script with the project's .venv Python")
-    print("                    directly (no uv run).")
+    print("Offline mode:       set UV_OFFLINE=1 or pass --offline")
+    print("                    to require a usable local .venv and run")
+    print("                    directly (never invokes uv run).")
 
 
 # Option '--' is separator.  When you use it, you're telling uvr to treat all arguments that come after it
@@ -157,6 +157,112 @@ def _find_venv_python(start_dir):
         current = parent
 
 
+def _find_project_root(start_dir):
+    current = os.path.realpath(start_dir)
+    if os.path.isfile(current):
+        current = os.path.dirname(current)
+
+    while True:
+        for marker in ('pyproject.toml', 'uv.lock', 'poetry.lock'):
+            if os.path.exists(os.path.join(current, marker)):
+                return current
+
+        parent = os.path.dirname(current)
+        if parent == current:
+            return None
+        current = parent
+
+
+def _is_poetry_project(project_root):
+    if not project_root:
+        return False
+    if os.path.isfile(os.path.join(project_root, 'poetry.lock')):
+        return True
+
+    pyproject = os.path.join(project_root, 'pyproject.toml')
+    if not os.path.isfile(pyproject):
+        return False
+    with open(pyproject, encoding='utf-8') as project_file:
+        return any(
+            line.strip() == '[tool.poetry]' or
+            (line.strip().startswith('[tool.poetry.') and line.strip().endswith(']'))
+            for line in project_file
+        )
+
+
+def _venv_program(venv_python, program):
+    if os.path.basename(program) != program:
+        return None
+
+    venv_root = os.path.dirname(os.path.dirname(venv_python))
+    candidates = [
+        os.path.join(venv_root, 'bin', program),
+        os.path.join(venv_root, 'Scripts', program),
+    ]
+    if os.name == 'nt' and not os.path.splitext(program)[1]:
+        candidates.extend(
+            os.path.join(venv_root, 'Scripts', program + extension)
+            for extension in ('.exe', '.bat', '.cmd')
+        )
+
+    for candidate in candidates:
+        if os.path.isfile(candidate) and (os.name == 'nt' or os.access(candidate, os.X_OK)):
+            return candidate
+    return None
+
+
+def _resolve_prog_args(run_target, pre_opt, post_opt, cwd=None):
+    offline = _is_offline(pre_opt)
+    is_script = os.path.isfile(run_target)
+    if is_script:
+        run_target = os.path.realpath(run_target)
+        start_dir = os.path.dirname(run_target)
+    else:
+        start_dir = cwd or os.getcwd()
+
+    project_root = _find_project_root(start_dir)
+    poetry_project = _is_poetry_project(project_root)
+    venv_python = _find_venv_python(start_dir)
+
+    if is_script:
+        if venv_python:
+            return [venv_python, run_target] + post_opt
+        if poetry_project:
+            raise ValueError(
+                "Poetry project has no usable .venv; create it with Poetry before running this script."
+            )
+        if offline:
+            raise ValueError(
+                "Offline mode requires a usable project .venv; refusing to run uv."
+            )
+
+        project = project_root or os.path.dirname(run_target)
+        return ['uv', 'run'] + pre_opt + [
+            '--project', project, run_target
+        ] + post_opt
+
+    if venv_python:
+        program = _venv_program(venv_python, run_target)
+        if program:
+            return [program] + post_opt
+        if offline:
+            raise ValueError(
+                f"Offline mode cannot find {run_target!r} in the active .venv; refusing to run uv."
+            )
+        if poetry_project or not os.path.isfile(os.path.join(project_root or '', 'uv.lock')):
+            return [run_target] + post_opt
+    elif poetry_project:
+        raise ValueError(
+            "Poetry project has no usable .venv; create it with Poetry before running this program."
+        )
+    elif offline:
+        raise ValueError(
+            "Offline mode requires a usable project .venv; refusing to run uv."
+        )
+
+    return ['uv', 'run'] + pre_opt + [run_target] + post_opt
+
+
 def _is_offline(pre_opt):
     """Return True when uv offline mode is requested.
 
@@ -187,23 +293,11 @@ def main():  # pragma: no cover
         print("No script provided", file=sys.stderr)
         sys.exit(1)
 
-    if not os.path.isfile(run_script):    # fall back to uv run
-        prog_args = ['uv', 'run'] + pre_opt + [
-            run_script
-        ] + post_opt
-    else:
-        run_script = os.path.realpath(run_script)
-        run_script_dir = os.path.dirname(run_script)
-        venv_python = _find_venv_python(run_script_dir) if _is_offline(pre_opt) else None
-
-        if venv_python:
-            if '-v' in pre_opt:
-                print(f"DEBUG uvr offline mode: using {venv_python}", file=sys.stderr)
-            prog_args = [venv_python, run_script] + post_opt
-        else:
-            prog_args = ['uv', 'run'] + pre_opt + [
-                '--project', run_script_dir, run_script
-            ] + post_opt
+    try:
+        prog_args = _resolve_prog_args(run_script, pre_opt, post_opt)
+    except ValueError as error:
+        print(error, file=sys.stderr)
+        sys.exit(1)
 
     if '-v' in pre_opt:
         print(f"DEBUG uv {prog_args=}", file=sys.stderr)
