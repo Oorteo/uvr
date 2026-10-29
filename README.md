@@ -13,7 +13,7 @@ uvr [options] [--] command [arguments]
 
 Rules are applied in this order:
 
-1. `uvr -h` and `uvr --help` print help and exit successfully.
+1. `uvr -h` and `uvr --help` print help. `uvr --version` or `uvr -V` prints the package version and the resolved executable, module, and Python interpreter paths.
 2. With no target, `uvr` starts Python. It uses a usable active `VIRTUAL_ENV`, then a project `.venv`. If the current directory is inside a project but that project has no usable `.venv`, it reports an error. Outside a project it starts system Python 3.
 3. `uvr --script` or `uvr --gui-script` explicitly requests uv-managed script execution.
 4. Otherwise, a script with a non-Python manager in its shebang is handed to that manager. Examples include `uv run --script`, `poetry run python`, and `conda run -n my-env python`. A shebang naming `uvr` itself is not recursively invoked.
@@ -149,11 +149,12 @@ This explicit separation is crucial for:
 
 ## Ctrl+C (SIGINT) Handling
 
-`uvr` handles `KeyboardInterrupt` to provide clean CLI behavior when interrupted with `Ctrl+C`.
+`uvr` exits with status code `130` when interrupted with `Ctrl+C`.
 
 - It suppresses Python traceback noise (unwanted junk output) on user interruption.
-- It exits with status code `130`, following the common Unix convention: `128 + 2` (`SIGINT` is signal number `2`).
-- This keeps output clean while still signaling to the parent shell/process that execution was interrupted.
+- When running the no-argument interactive Python REPL, `uvr` terminates and waits for the Python child so it cannot remain attached to the terminal after `uvr` exits.
+- Python may print a `KeyboardInterrupt` traceback before the child is terminated.
+- Status `130` follows the common Unix convention: `128 + 2` (`SIGINT` is signal number `2`).
 
 Platform note:
 

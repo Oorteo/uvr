@@ -2,6 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Authors (see git history)
 # SPDX-License-Identifier: MIT
 
+import ast
 import ctypes
 import os
 import shlex
@@ -27,6 +28,33 @@ def _owns_console():
 
 
 def get_uvr_version():
+    current_dir = os.path.dirname(os.path.realpath(__file__))
+    while True:
+        project_file = os.path.join(current_dir, 'pyproject.toml')
+        if os.path.isfile(project_file):
+            try:
+                with open(project_file, encoding='utf-8') as file:
+                    in_project_section = False
+                    for line in file:
+                        line = line.strip()
+                        if line.startswith('['):
+                            in_project_section = line == '[project]'
+                        elif in_project_section:
+                            key, separator, value = line.partition('=')
+                            if separator and key.strip() == 'version':
+                                version_value = value.split('#', 1)[0].strip()
+                                version_string = ast.literal_eval(version_value)
+                                if isinstance(version_string, str):
+                                    return version_string
+                                break
+            except (OSError, SyntaxError, ValueError):
+                pass
+
+        parent_dir = os.path.dirname(current_dir)
+        if parent_dir == current_dir:
+            break
+        current_dir = parent_dir
+
     from importlib.metadata import PackageNotFoundError, version
 
     try:
@@ -35,12 +63,20 @@ def get_uvr_version():
         return 'unknown'
 
 
+def print_version():
+    print(f"uvr {get_uvr_version()}")
+    print(f"Executable: {os.path.realpath(sys.argv[0])}")
+    print(f"Module:     {os.path.realpath(__file__)}")
+    print(f"Python:     {sys.executable}")
+
+
 def print_help():
     print(f"Version:            {get_uvr_version()}")
     print("Usage:               uvr [options] [--] script.py [script options]")
     print("                     uvr [options] [--] command [arguments]")
     print("                     uvr                       (start Python)")
     print("Help:                uvr -h | --help")
+    print("Version:             uvr --version | -V")
     print("Python selection:    active/project .venv, then system Python 3")
     print("System Python:       set UVR_SYSTEM_PYTHON to override the default")
     print("uv scripts:          PEP 723 metadata or --script/--gui-script")
@@ -381,6 +417,51 @@ def _resolve_prog_args(run_target, pre_opt, post_opt, cwd=None):
     raise ValueError(f"Command {run_target!r} was not found in the selected .venv or PATH.")
 
 
+def _run_interactive_python(prog_args, **kwargs):
+    terminal_state = _capture_terminal_state()
+    process = subprocess.Popen(prog_args, **kwargs)
+    try:
+        return process.wait()
+    except KeyboardInterrupt:
+        try:
+            process.terminate()
+        except ProcessLookupError:
+            pass
+        try:
+            process.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            try:
+                process.kill()
+            except ProcessLookupError:
+                pass
+            process.wait()
+        raise
+    finally:
+        _restore_terminal_state(terminal_state)
+
+
+def _capture_terminal_state():
+    if os.name == 'nt' or not sys.stdin.isatty():
+        return None
+    try:
+        import termios
+
+        file_descriptor = sys.stdin.fileno()
+        return termios, file_descriptor, termios.tcgetattr(file_descriptor)
+    except (ImportError, OSError, ValueError):
+        return None
+
+
+def _restore_terminal_state(terminal_state):
+    if terminal_state is None:
+        return
+    termios, file_descriptor, attributes = terminal_state
+    try:
+        termios.tcsetattr(file_descriptor, termios.TCSANOW, attributes)
+    except (OSError, ValueError):
+        pass
+
+
 def _is_offline(pre_opt):
     """Return True when uv offline mode is requested.
 
@@ -400,6 +481,10 @@ def main():  # pragma: no cover
 
     if '-h' in pre_opt or '--help' in pre_opt:
         print_help()
+        sys.exit(0)
+
+    if '-V' in pre_opt or '--version' in pre_opt:
+        print_version()
         sys.exit(0)
 
     if '-v' in pre_opt or '-vv' in pre_opt:
@@ -422,21 +507,25 @@ def main():  # pragma: no cover
         print(f"DEBUG uv {prog_args=}", file=sys.stderr)
 
 
-    # Remove extraneous output (junk) on Ctrl+C (SIGINT):
+    # Ensure Ctrl+C does not leave an interactive Python child running.
     try:
         kwargs = {}
         if not _owns_console():
             # We are the gui-script entry point (uvr-gui) on Windows, launched
             # without a console. Tell the child `uv` process not to create one.
             kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
-        result = subprocess.run(prog_args, check=False, **kwargs)
+        if run_script is None:
+            return_code = _run_interactive_python(prog_args, **kwargs)
+        else:
+            result = subprocess.run(prog_args, check=False, **kwargs)
+            return_code = result.returncode
     except KeyboardInterrupt:
         # Cleanly handle Ctrl+C (SIGINT): exit with code 130 (128 + 2),
         # where 128 is the base for fatal signals and 2 is the signal number for SIGINT.
         # This prevents unwanted traceback (unwanted output/noise) and signals to the shell
         # that the process was interrupted by the user.
         sys.exit(130)
-    sys.exit(result.returncode)
+    sys.exit(return_code)
 
 
 if __name__ == "__main__":  # pragma: no cover

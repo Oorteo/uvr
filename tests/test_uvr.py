@@ -420,15 +420,52 @@ def test_main_without_arguments_starts_system_python(tmp_path, monkeypatch):
     calls = []
     monkeypatch.setattr(
         uvr_module.subprocess,
-        'run',
-        lambda args, **kwargs: calls.append((args, kwargs)) or SimpleNamespace(returncode=0),
+        'Popen',
+        lambda args, **kwargs: calls.append((args, kwargs))
+        or SimpleNamespace(wait=lambda: 0),
     )
 
     with pytest.raises(SystemExit) as exit_info:
         uvr_module.main()
 
     assert exit_info.value.code == 0
-    assert calls == [([system_python], {'check': False})]
+    assert calls == [([system_python], {})]
+
+
+def test_interactive_python_child_is_terminated_on_keyboard_interrupt(monkeypatch):
+    calls = []
+    terminal_state = object()
+
+    def wait(timeout=None):
+        calls.append(('wait', timeout))
+        if timeout is None:
+            raise KeyboardInterrupt
+        return -15
+
+    process = SimpleNamespace(
+        wait=wait,
+        terminate=lambda: calls.append(('terminate',)),
+    )
+    monkeypatch.setattr(
+        uvr_module.subprocess,
+        'Popen',
+        lambda *args, **kwargs: process,
+    )
+    monkeypatch.setattr(
+        uvr_module, '_capture_terminal_state', lambda: terminal_state
+    )
+    monkeypatch.setattr(
+        uvr_module,
+        '_restore_terminal_state',
+        lambda state: calls.append(('restore', state)),
+    )
+
+    with pytest.raises(KeyboardInterrupt):
+        uvr_module._run_interactive_python(['/usr/bin/python3'])
+
+    assert calls == [
+        ('wait', None), ('terminate',), ('wait', 1), ('restore', terminal_state)
+    ]
 
 
 @pytest.mark.parametrize('help_option', ['-h', '--help'])
@@ -445,6 +482,52 @@ def test_main_help_options_exit_successfully(help_option, monkeypatch, capsys):
 
     assert exit_info.value.code == 0
     assert 'Usage:' in capsys.readouterr().out
+
+
+@pytest.mark.parametrize('version_option', ['--version', '-V'])
+def test_main_version_options_report_runtime_and_exit(
+    version_option, monkeypatch, capsys
+):
+    monkeypatch.setattr(uvr_module.sys, 'argv', ['uvr', version_option])
+    monkeypatch.setattr(
+        uvr_module.subprocess,
+        'run',
+        lambda *args, **kwargs: pytest.fail('version must not launch a child process'),
+    )
+    monkeypatch.setattr(
+        uvr_module.subprocess,
+        'Popen',
+        lambda *args, **kwargs: pytest.fail('version must not launch a child process'),
+    )
+
+    with pytest.raises(SystemExit) as exit_info:
+        uvr_module.main()
+
+    output = capsys.readouterr().out
+    assert exit_info.value.code == 0
+    assert f'uvr {uvr_module.get_uvr_version()}' in output
+    assert 'Executable:' in output
+    assert 'Module:' in output
+    assert 'Python:' in output
+
+
+def test_get_uvr_version_reads_project_version_when_metadata_is_missing(
+    tmp_path, monkeypatch
+):
+    source_dir = tmp_path / 'src' / 'uvr'
+    source_dir.mkdir(parents=True)
+    module_file = source_dir / 'uvr.py'
+    module_file.write_text('')
+    (tmp_path / 'pyproject.toml').write_text(
+        '[project]\nname = "uvr"\nversion = "9.8.7"\n'
+    )
+    monkeypatch.setattr(uvr_module, '__file__', str(module_file))
+    monkeypatch.setattr(
+        'importlib.metadata.version',
+        lambda _: pytest.fail('project version should be used first'),
+    )
+
+    assert uvr_module.get_uvr_version() == '9.8.7'
 
 
 @pytest.mark.parametrize(
