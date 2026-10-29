@@ -4,8 +4,10 @@
 
 import ctypes
 import os
-import sys
+import shlex
+import shutil
 import subprocess
+import sys
 
 
 def _owns_console():
@@ -35,16 +37,14 @@ def get_uvr_version():
 
 def print_help():
     print(f"Version:            {get_uvr_version()}")
-    print("Shebang usage:      #!/usr/bin/env -S uvr [options] [--]")
-    print(
-        "Command line usage: uvr [options] [--] script.py [script options]"
-    )
-    print(
-        "Debug usage:        uvr -v [options] [--] script.py [script options]"
-    )
-    print("Offline mode:       set UV_OFFLINE=1 or pass --offline")
-    print("                    to require a usable local .venv and run")
-    print("                    directly (never invokes uv run).")
+    print("Usage:               uvr [options] [--] script.py [script options]")
+    print("                     uvr [options] [--] command [arguments]")
+    print("                     uvr                       (start Python)")
+    print("Help:                uvr -h | --help")
+    print("Python selection:    active/project .venv, then system Python 3")
+    print("System Python:       set UVR_SYSTEM_PYTHON to override the default")
+    print("uv scripts:          PEP 723 metadata or --script/--gui-script")
+    print("Offline mode:        set UV_OFFLINE=1 or pass --offline")
 
 
 # Option '--' is separator.  When you use it, you're telling uvr to treat all arguments that come after it
@@ -86,10 +86,14 @@ def resolve_argv():
     post_opt = sys.argv[idx + 2:]
 
     # prevent looping forever the same script not ending with .py or .pyw
-    if not (run_script.endswith('.py') or run_script.endswith('.pyw')):
-        if '-s' not in pre_opt and '--script' not in pre_opt and '--gui-script' not in pre_opt:
-            if os.path.isfile(run_script):  # check if the script is a valid file
-                pre_opt.append('--script')  # if it is a file, we assume it is a python script
+    script_options = ('-s', '--script', '--gui-script')
+    if (
+        not run_script.endswith(('.py', '.pyw'))
+        and not any(option in pre_opt for option in script_options)
+        and os.path.isfile(run_script)
+        and not _is_executable_program(run_script)
+    ):
+        pre_opt.append('--script')
 
     return pre_opt, run_script, post_opt
 
@@ -147,7 +151,7 @@ def _find_venv_python(start_dir):
         # would misfire when scripts live inside a foreign git repository
         # (e.g. via a symlink into someone else's repo), so it is intentionally
         # omitted. The filesystem root check below is the final safety net.
-        for marker in ('pyproject.toml', 'uv.lock'):
+        for marker in ('pyproject.toml', 'uv.lock', 'poetry.lock'):
             if os.path.exists(os.path.join(current, marker)):
                 return None
 
@@ -211,12 +215,123 @@ def _venv_program(venv_python, program):
     return None
 
 
+def _has_inline_script_metadata(script_path):
+    """Return True when a script contains a PEP 723 metadata block."""
+    try:
+        with open(script_path, encoding='utf-8-sig') as script_file:
+            in_metadata = False
+            for line in script_file:
+                marker = line.strip()
+                if marker == '# /// script':
+                    in_metadata = True
+                elif in_metadata and marker == '# ///':
+                    return True
+    except (OSError, UnicodeError):
+        return False
+    return False
+
+
+def _is_uvr_shebang(script_path):
+    try:
+        with open(script_path, encoding='utf-8-sig') as script_file:
+            shebang = script_file.readline().lower()
+    except (OSError, UnicodeError):
+        return False
+    return shebang.startswith('#!') and 'uvr' in shebang
+
+
+def _manager_shebang_args(script_path):
+    try:
+        with open(script_path, encoding='utf-8-sig') as script_file:
+            shebang = script_file.readline().strip()
+    except (OSError, UnicodeError):
+        return None
+
+    if not shebang.startswith('#!'):
+        return None
+    try:
+        parts = shlex.split(shebang[2:].strip())
+        if not parts:
+            return None
+        if os.path.basename(parts[0]) == 'env':
+            parts = parts[1:]
+            if parts and parts[0] == '-S':
+                parts = shlex.split(' '.join(parts[1:]))
+        if not parts:
+            return None
+    except ValueError:
+        return None
+
+    command = os.path.basename(parts[0]).lower()
+    if command.startswith('python') or command == 'uvr':
+        return None
+    return parts
+
+
+def _is_executable_program(path):
+    if not os.path.isfile(path):
+        return False
+    if os.name == 'nt':
+        return os.path.splitext(path)[1].lower() in ('.exe', '.bat', '.cmd')
+    return os.access(path, os.X_OK) and not (
+        _has_inline_script_metadata(path) or _is_uvr_shebang(path)
+    )
+
+
+def _system_python():
+    configured_python = os.environ.get('UVR_SYSTEM_PYTHON')
+    if configured_python:
+        return [configured_python]
+
+    if os.name == 'nt':
+        launcher = shutil.which('py')
+        if launcher:
+            return [launcher, '-3']
+    elif os.path.isfile('/usr/bin/python3'):
+        return ['/usr/bin/python3']
+
+    raise ValueError(
+        'System Python 3 was not found; set UVR_SYSTEM_PYTHON to its executable.'
+    )
+
+
+def _resolve_default_python_args(cwd=None):
+    start_dir = cwd or os.getcwd()
+    venv_python = _find_venv_python(start_dir)
+    if venv_python:
+        return [venv_python]
+
+    project_root = _find_project_root(start_dir)
+    if project_root:
+        raise ValueError(
+            f'Python project at {project_root!r} has no usable .venv; '
+            'create the project environment before starting Python.'
+        )
+    return _system_python()
+
+
 def _resolve_prog_args(run_target, pre_opt, post_opt, cwd=None):
     offline = _is_offline(pre_opt)
-    is_script = os.path.isfile(run_target)
+    script_options = ('-s', '--script', '--gui-script')
+    explicitly_script = any(option in pre_opt for option in script_options)
+    is_file = os.path.isfile(run_target)
+    manager_shebang = _manager_shebang_args(run_target) if is_file else None
+    if manager_shebang and not explicitly_script:
+        manager_name = os.path.basename(manager_shebang[0]).lower()
+        if not (offline and manager_name == 'uv'):
+            return manager_shebang + [os.path.realpath(run_target)] + post_opt
+
+    is_script = (
+        explicitly_script
+        or run_target.endswith(('.py', '.pyw'))
+        or (is_file and not _is_executable_program(run_target))
+    )
     if is_script:
-        run_target = os.path.realpath(run_target)
-        start_dir = os.path.dirname(run_target)
+        if is_file:
+            run_target = os.path.realpath(run_target)
+            start_dir = os.path.dirname(run_target)
+        else:
+            start_dir = cwd or os.getcwd()
     else:
         start_dir = cwd or os.getcwd()
 
@@ -225,6 +340,9 @@ def _resolve_prog_args(run_target, pre_opt, post_opt, cwd=None):
     venv_python = _find_venv_python(start_dir)
 
     if is_script:
+        has_inline_metadata = is_file and _has_inline_script_metadata(run_target)
+        if (explicitly_script or has_inline_metadata) and not offline:
+            return ['uv', 'run'] + pre_opt + [run_target] + post_opt
         if venv_python:
             return [venv_python, run_target] + post_opt
         if poetry_project:
@@ -235,32 +353,32 @@ def _resolve_prog_args(run_target, pre_opt, post_opt, cwd=None):
             raise ValueError(
                 "Offline mode requires a usable project .venv; refusing to run uv."
             )
-
-        project = project_root or os.path.dirname(run_target)
-        return ['uv', 'run'] + pre_opt + [
-            '--project', project, run_target
-        ] + post_opt
+        if project_root:
+            raise ValueError(
+                f'Python project at {project_root!r} has no usable .venv; '
+                'create the project environment before running this script.'
+            )
+        return _system_python() + [run_target] + post_opt
 
     if venv_python:
         program = _venv_program(venv_python, run_target)
         if program:
             return [program] + post_opt
-        if offline:
+
+    path_program = shutil.which(run_target)
+    if path_program:
+        return [path_program] + post_opt
+
+    if offline:
+        if venv_python:
             raise ValueError(
-                f"Offline mode cannot find {run_target!r} in the active .venv; refusing to run uv."
+                f"Offline mode cannot find {run_target!r} in the selected .venv or PATH."
             )
-        if poetry_project or not os.path.isfile(os.path.join(project_root or '', 'uv.lock')):
-            return [run_target] + post_opt
-    elif poetry_project:
-        raise ValueError(
-            "Poetry project has no usable .venv; create it with Poetry before running this program."
-        )
-    elif offline:
         raise ValueError(
             "Offline mode requires a usable project .venv; refusing to run uv."
         )
 
-    return ['uv', 'run'] + pre_opt + [run_target] + post_opt
+    raise ValueError(f"Command {run_target!r} was not found in the selected .venv or PATH.")
 
 
 def _is_offline(pre_opt):
@@ -276,11 +394,13 @@ def _is_offline(pre_opt):
 
 def main():  # pragma: no cover
     if len(sys.argv) < 2:
+        pre_opt, run_script, post_opt = [], None, []
+    else:
+        pre_opt, run_script, post_opt = resolve_argv()
+
+    if '-h' in pre_opt or '--help' in pre_opt:
         print_help()
-
-        sys.exit(1)
-
-    pre_opt, run_script, post_opt = resolve_argv()
+        sys.exit(0)
 
     if '-v' in pre_opt or '-vv' in pre_opt:
         print(f"DEBUG uvr {sys.argv=}", file=sys.stderr)
@@ -289,12 +409,11 @@ def main():  # pragma: no cover
         if '-vv' in pre_opt:  # exit after debug output
             sys.exit(0)
 
-    if run_script is None:
-        print("No script provided", file=sys.stderr)
-        sys.exit(1)
-
     try:
-        prog_args = _resolve_prog_args(run_script, pre_opt, post_opt)
+        if run_script is None:
+            prog_args = _resolve_default_python_args()
+        else:
+            prog_args = _resolve_prog_args(run_script, pre_opt, post_opt)
     except ValueError as error:
         print(error, file=sys.stderr)
         sys.exit(1)
@@ -310,7 +429,7 @@ def main():  # pragma: no cover
             # We are the gui-script entry point (uvr-gui) on Windows, launched
             # without a console. Tell the child `uv` process not to create one.
             kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
-        result = subprocess.run(prog_args, **kwargs)
+        result = subprocess.run(prog_args, check=False, **kwargs)
     except KeyboardInterrupt:
         # Cleanly handle Ctrl+C (SIGINT): exit with code 130 (128 + 2),
         # where 128 is the base for fatal signals and 2 is the signal number for SIGINT.

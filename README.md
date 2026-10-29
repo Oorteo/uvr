@@ -1,32 +1,32 @@
 # Streamlined Script Execution with `uvr`
 
-[`uv`](https://github.com/astral-sh/uv.git) is a blazing fast, modern Python package manager and workflow tool. However, its project-centric design (`uv run`) prioritizes the current working directory (CWD) when looking for virtual environments and `pyproject.toml` files. This makes it cumbersome to execute a project-dependent script from outside its root directory, as it forces you to manually pass the `--project` flag with the absolute path to the script's home.
+[`uv`](https://github.com/astral-sh/uv.git) is a Python package manager and script runner. `uvr` selects an interpreter for Python scripts and resolves commands from a project's `.venv` or `PATH`. It delegates to `uv` when a script requests uv-managed execution, such as with PEP 723 inline metadata or a uv shebang.
 
-`uvr` (uv-runner) acts as an intelligent wrapper that resolves this pain point. It automatically detects the correct project context relative to the script being executed, allowing you to use a clean shebang (`#!/usr/bin/env uvr`) or call:
-
-```bash
-uvr [options] script.py
-```
-
-instead of:
+Call `uvr` with a script or command:
 
 ```bash
-uv run --project /path/to/script/project [options] /path/to/script/project/script.py
+uvr [options] [--] script.py [script arguments]
+uvr [options] [--] command [arguments]
 ```
 
-**Key Value:** It restores the true portability of standalone and project-tied Python scripts without polluting your command line or breaking your workflow when moving between directories. It also supports an optional offline mode that runs scripts directly against a project `.venv` without invoking `uv run`.
+## Decision Rules
 
-## Project Virtual Environments
+Rules are applied in this order:
 
-- If `VIRTUAL_ENV` points to a usable environment, `uvr` prefers it. Otherwise,
-  `uvr` searches upward from the script directory (or current directory for a
-  command) for a project `.venv`.
-- Python scripts run directly with that environment's interpreter. Commands
-  such as `pytest` run directly from its `bin` directory on Unix or `Scripts`
-  directory on Windows. The selected environment is not synchronized by `uv`.
-- A uv project without a `.venv` keeps the normal `uv run` bootstrap behavior
-  when online. A Poetry project without a usable `.venv` fails with an error
-  instead of being passed to `uv run`.
+1. `uvr -h` and `uvr --help` print help and exit successfully.
+2. With no target, `uvr` starts Python. It uses a usable active `VIRTUAL_ENV`, then a project `.venv`. If the current directory is inside a project but that project has no usable `.venv`, it reports an error. Outside a project it starts system Python 3.
+3. `uvr --script` or `uvr --gui-script` explicitly requests uv-managed script execution.
+4. Otherwise, a script with a non-Python manager in its shebang is handed to that manager. Examples include `uv run --script`, `poetry run python`, and `conda run -n my-env python`. A shebang naming `uvr` itself is not recursively invoked.
+5. A script containing PEP 723 inline script metadata is run by `uv`, so its declared dependencies and Python requirement are honored. This takes precedence over a discovered project `.venv`.
+6. Other Python scripts use the active `VIRTUAL_ENV`, then the nearest project `.venv`. Project roots are detected by `pyproject.toml`, `uv.lock`, or `poetry.lock`. If a project root has no usable `.venv`, `uvr` reports an error rather than silently selecting a different Python.
+7. A Python script outside a project and without an active venv uses system Python 3. Set `UVR_SYSTEM_PYTHON` to select its executable explicitly. The default is `/usr/bin/python3` on Unix-like systems and `py -3` on Windows.
+8. For commands, `uvr` checks the selected venv's `bin` or `Scripts` directory first, then searches `PATH`. It does not use `uv run` as a command fallback.
+
+The active `VIRTUAL_ENV` takes precedence over a project `.venv`. `uvr` does not install or synchronize dependencies in either environment.
+
+## Python Packages
+
+`UVR_SYSTEM_PYTHON` selects an interpreter; it does not install packages. Install packages into an isolated project `.venv` when possible. Packages can also be installed into a separately managed Python installation, but mixing dependencies into an OS-managed Python may conflict with the operating system's package manager.
 
 ## Installation
 
@@ -55,7 +55,7 @@ On Linux and macOS both commands behave the same.
 
 ## Usage
 
-Several ways to run your Python scripts with `uv`:
+Examples of running scripts and commands with `uvr`:
 
 1.  **Using `uv run --project <project_path> <script_path>`:**
     - This command explicitly tells `uv` to run the specified Python script within the context of the project located at `<project_path>`.
@@ -67,8 +67,7 @@ Several ways to run your Python scripts with `uv`:
         ```
 
 2.  **Using `uvr script.py`:**
-    - This is a more direct way to execute your Python script (`script.py`) using `uvr`.
-    - `uvr` automatically determines the project directory based on the script path, effectively mimicking the `--project` flag's behavior.
+    - `uvr` selects the interpreter based on the decision rules above.
     - Example:
 
         ```bash
@@ -93,8 +92,7 @@ Several ways to run your Python scripts with `uv`:
     - If you pass script arguments, use `--` to separate `uvr/uv` options from script arguments.
 
 4.  **Scripts without `.py` or `.pyw` extension:**
-    - Automatic `--script` option is added if not already present (`--script` or `--gui-script`) in options.
-    - Without this, `uv` can in some cases mis-handle execution flow.
+    - For extensionless script files, `uvr` uses `--script` when needed to preserve script execution. A shebang naming another manager is handed to that manager.
 
     - Example: For a `foo` script:
 
@@ -103,7 +101,7 @@ Several ways to run your Python scripts with `uv`:
         # Your Python code here...
         ```
 
-        This will be executed as `uv run [options] --script ...` if `[options]` do not already contain `--script` or `--gui-script`.
+        This is treated as a Python script. Use an explicit manager shebang, such as `#!/usr/bin/env -S uv run --script`, when the script must use that manager.
 
     - Or, to be more explicit, you can include the `--script` flag directly in the shebang:
 
@@ -111,7 +109,7 @@ Several ways to run your Python scripts with `uv`:
         #!/usr/bin/env -S uvr --script
         ```
 
-    - **Important Exception for Non-Files**: If the identified `script_path` (the argument immediately following options or `--`) does not point to an actual file on disk, `uvr` will not automatically add the `--script` or `--gui-script` option. This behavior ensures `uvr` can correctly pass through commands that are executables within the virtual environment (e.g., `uvr black .`, `uvr pytest`), rather than a Python script file.
+    - Commands such as `uvr black .` or `uvr pytest` are resolved from the selected venv and then `PATH`; they are not treated as Python scripts.
 
 5.  **Debug usage:**
     - Example:
@@ -121,15 +119,12 @@ Several ways to run your Python scripts with `uv`:
         ```
 
 6.  **Offline mode:**
-        - When `UV_OFFLINE=1` is set or `--offline` is passed among the `uvr`
-            pre-options, `uvr` runs directly from the selected local environment and
-            never invokes `uv run`.
-        - Offline mode requires a usable environment. Python scripts need its
-            interpreter; commands need to exist in that environment. If either is
-            missing, `uvr` reports an error instead of trying to bootstrap anything.
-        - This skips `uv` dependency resolution and lockfile checks entirely. It is
-            stricter than `uv --offline`, which still runs `uv` and only disables
-            network access.
+                - When `UV_OFFLINE=1` is set or `--offline` is passed among the `uvr`
+                    pre-options, `uvr` does not invoke uv for script dependency resolution.
+                - Python scripts run directly from the selected venv. A script that needs
+                    uv-managed metadata but has no usable venv fails rather than resolving
+                    or downloading dependencies.
+                - Commands are still resolved from the selected venv and then `PATH`.
     - Examples:
         ```bash
         UV_OFFLINE=1 uvr script.py
@@ -140,9 +135,9 @@ Several ways to run your Python scripts with `uv`:
 
 ## General Rule for Using the `--` Separator
 
-The `--` argument functions as a standard command-line delimiter. It explicitly separates options intended for `uvr` (and its underlying `uv` process) from arguments specifically designated for the Python script being executed.
+The `--` argument functions as a standard command-line delimiter. It separates options intended for `uvr` (and, for uv-managed scripts, uv) from arguments intended for the target script or command.
 
-Arguments appearing before the `--` are processed by `uvr` (`uv`). Arguments appearing after the `--` are passed directly to the invoked Python script.
+Arguments appearing before `--` are processed by `uvr`. Arguments appearing after `--` are passed directly to the invoked script or command.
 
 This explicit separation is crucial for:
 
@@ -167,7 +162,7 @@ Platform note:
 
 ## Security Notes
 
-`uvr` is a convenience wrapper around `uv run`. It does not add privileges by itself, but it will execute the script/command you pass to it.
+`uvr` is a command runner, not a sandbox. It executes the script or command you pass to it, directly or through the manager selected by the script's shebang.
 
 Main risks:
 
