@@ -299,6 +299,33 @@ def test_resolve_program_falls_back_to_path(tmp_path, monkeypatch):
     ]
 
 
+@pytest.mark.parametrize('python_command', ['python', 'python3'])
+def test_resolve_python_alias_uses_project_venv(tmp_path, monkeypatch, python_command):
+    project = tmp_path / 'project'
+    python = project / '.venv' / 'bin' / 'python'
+    python.parent.mkdir(parents=True)
+    python.write_text('')
+    (project / 'pyproject.toml').write_text('[project]\nname = "project"\n')
+    monkeypatch.delenv('VIRTUAL_ENV', raising=False)
+
+    assert _resolve_prog_args(python_command, [], ['-c', 'pass'], cwd=str(project)) == [
+        str(python), '-c', 'pass'
+    ]
+
+
+@pytest.mark.parametrize('python_command', ['python', 'python3'])
+def test_resolve_python_alias_uses_system_python_without_venv(
+    tmp_path, monkeypatch, python_command
+):
+    system_python = str(tmp_path / 'system-python')
+    monkeypatch.delenv('VIRTUAL_ENV', raising=False)
+    monkeypatch.setenv('UVR_SYSTEM_PYTHON', system_python)
+
+    assert _resolve_prog_args(python_command, [], ['-c', 'pass'], cwd=str(tmp_path)) == [
+        system_python, '-c', 'pass'
+    ]
+
+
 def test_resolve_executable_program_by_path_does_not_treat_it_as_python_script(
     tmp_path, monkeypatch
 ):

@@ -375,6 +375,11 @@ def _resolve_prog_args(run_target, pre_opt, post_opt, cwd=None):
     poetry_project = _is_poetry_project(project_root)
     venv_python = _find_venv_python(start_dir)
 
+    if run_target in ('python', 'python3'):
+        if venv_python:
+            return [venv_python] + post_opt
+        return _system_python() + post_opt
+
     if is_script:
         has_inline_metadata = is_file and _has_inline_script_metadata(run_target)
         if (explicitly_script or has_inline_metadata) and not offline:
