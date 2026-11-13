@@ -51,6 +51,10 @@ Two entry points are installed:
 - `uvr` — console application. Use from a terminal or for scripts that need a command-line window.
 - `uvr-gui` — GUI application. Use for scripts started by double-click or for GUI-only programs that must not open a console window.
 
+When `uvr-gui` is started by another process that redirects its standard
+streams — an editor, Inkscape, or a build tool — the child still writes to
+those pipes; only the console window is suppressed.
+
 On Linux and macOS both commands behave the same.
 
 ## Usage
