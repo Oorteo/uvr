@@ -10,6 +10,13 @@ import shutil
 import subprocess
 import sys
 
+if os.name == 'nt':
+    import msvcrt
+else:
+    msvcrt = None
+
+_HANDLE_FLAG_INHERIT = 0x00000001
+
 
 def _owns_console():
     """Return True if this process already owns a console.
@@ -25,6 +32,42 @@ def _owns_console():
     if sys.platform != "win32":
         return True  # only Windows distinguishes console vs GUI executables
     return ctypes.windll.kernel32.GetConsoleWindow() != 0
+
+
+def _make_inheritable(handle):
+    """Let a standard handle be passed to a child process."""
+    try:
+        kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        kernel32.SetHandleInformation(
+            ctypes.c_void_p(handle), _HANDLE_FLAG_INHERIT, _HANDLE_FLAG_INHERIT
+        )
+    except (AttributeError, OSError, ValueError):
+        pass
+
+
+def _standard_stream_arguments():
+    """Return stdio arguments that keep the caller's pipes working.
+
+    Windows copies the parent's standard handles into a child process only
+    when the child is created with ``STARTF_USESTDHANDLES``.  Without that
+    flag a child spawned from a process that has no console gets its own
+    invisible console and everything it prints is lost.  Passing the streams
+    explicitly makes ``subprocess`` set the flag, while ``CREATE_NO_WINDOW``
+    still keeps the child console-less.
+    """
+    arguments = {}
+    for name in ('stdin', 'stdout', 'stderr'):
+        stream = getattr(sys, name, None)
+        try:
+            handle = msvcrt.get_osfhandle(stream.fileno()) if stream is not None else None
+        except (AttributeError, OSError, ValueError):
+            handle = None
+        if handle is None:
+            arguments[name] = subprocess.DEVNULL
+            continue
+        _make_inheritable(handle)
+        arguments[name] = stream
+    return arguments
 
 
 def get_uvr_version():
@@ -517,8 +560,11 @@ def main():  # pragma: no cover
         kwargs = {}
         if not _owns_console():
             # We are the gui-script entry point (uvr-gui) on Windows, launched
-            # without a console. Tell the child `uv` process not to create one.
+            # without a console. Tell the child `uv` process not to create one
+            # and hand it our standard handles, which Windows would otherwise
+            # drop along with the output of everything the child prints.
             kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+            kwargs.update(_standard_stream_arguments())
         if run_script is None:
             return_code = _run_interactive_python(prog_args, **kwargs)
         else:

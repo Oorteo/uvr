@@ -459,6 +459,43 @@ def test_main_without_arguments_starts_system_python(tmp_path, monkeypatch):
     assert calls == [([system_python], {})]
 
 
+def test_gui_entry_point_keeps_standard_handles(tmp_path, monkeypatch):
+    """A console-less launcher must hand its stdio to the child process."""
+    system_python = str(tmp_path / 'python3')
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv('VIRTUAL_ENV', raising=False)
+    monkeypatch.setenv('UVR_SYSTEM_PYTHON', system_python)
+    monkeypatch.setattr(uvr_module.sys, 'argv', ['uvr'])
+    monkeypatch.setattr(uvr_module, '_owns_console', lambda: False)
+    streams = {'stdin': object(), 'stdout': object(), 'stderr': object()}
+    monkeypatch.setattr(uvr_module, '_standard_stream_arguments', lambda: streams)
+    monkeypatch.setattr(uvr_module.subprocess, 'CREATE_NO_WINDOW', 0x08000000, raising=False)
+    calls = []
+    monkeypatch.setattr(
+        uvr_module.subprocess,
+        'Popen',
+        lambda args, **kwargs: calls.append((args, kwargs))
+        or SimpleNamespace(wait=lambda: 0),
+    )
+
+    with pytest.raises(SystemExit) as exit_info:
+        uvr_module.main()
+
+    assert exit_info.value.code == 0
+    assert calls[0][1]['creationflags'] == 0x08000000
+    assert calls[0][1]['stdout'] is streams['stdout']
+    assert calls[0][1]['stderr'] is streams['stderr']
+
+
+def test_standard_stream_arguments_fall_back_to_devnull(monkeypatch):
+    """Streams without a usable handle still give the child a valid device."""
+    monkeypatch.setattr(uvr_module.sys, 'stdout', None)
+
+    arguments = uvr_module._standard_stream_arguments()
+
+    assert arguments['stdout'] == uvr_module.subprocess.DEVNULL
+
+
 def test_interactive_python_child_is_terminated_on_keyboard_interrupt(monkeypatch):
     calls = []
     terminal_state = object()
