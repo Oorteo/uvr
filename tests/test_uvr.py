@@ -285,16 +285,26 @@ def test_resolve_program_uses_only_project_venv_bin(tmp_path, monkeypatch):
     ]
 
 
+def _program_name(name):
+    """Return a program name that is executable on the current platform.
+
+    Windows has no executable extension-less files, so the fixtures use a
+    `.cmd` name there; `_is_executable_program` and `shutil.which` then take
+    the same branch a real launcher would.
+    """
+    return f'{name}.cmd' if os.name == 'nt' else name
+
+
 def test_resolve_program_falls_back_to_path(tmp_path, monkeypatch):
     monkeypatch.delenv('VIRTUAL_ENV', raising=False)
     bin_dir = tmp_path / 'bin'
     bin_dir.mkdir()
-    program = bin_dir / 'plugin-command'
+    program = bin_dir / _program_name('plugin-command')
     program.write_text('#!/bin/sh\n')
     program.chmod(0o755)
     monkeypatch.setenv('PATH', str(bin_dir))
 
-    assert _resolve_prog_args('plugin-command', [], ['arg'], cwd=str(tmp_path)) == [
+    assert _resolve_prog_args(program.name, [], ['arg'], cwd=str(tmp_path)) == [
         str(program), 'arg'
     ]
 
@@ -331,7 +341,7 @@ def test_resolve_executable_program_by_path_does_not_treat_it_as_python_script(
 ):
     monkeypatch.delenv('VIRTUAL_ENV', raising=False)
     project = tmp_path / 'project'
-    program = project / '.venv' / 'bin' / 'plugin-command'
+    program = project / '.venv' / 'bin' / _program_name('plugin-command')
     program.parent.mkdir(parents=True)
     program.write_text('#!/usr/bin/python3\n')
     program.chmod(0o755)
